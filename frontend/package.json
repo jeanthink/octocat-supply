@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@types/react-slick": "^0.23.13",
-    "axios": "1.8.1",
+    "axios": "1.15.2",
     "globals": "17.4.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
