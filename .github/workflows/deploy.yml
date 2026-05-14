@@ -1,0 +1,210 @@
+name: 🚢 Deploy to Azure
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_image:
+        description: 'API Container Image'
+        required: true
+        type: string
+      api_digest:
+        description: 'API Container Digest (sha256:...)'
+        required: true
+        type: string
+      api_name:
+        description: 'API Package Name'
+        required: true
+        type: string
+      frontend_image:
+        description: 'Frontend Container Image'
+        required: true
+        type: string
+      frontend_digest:
+        description: 'Frontend Container Digest (sha256:...)'
+        required: true
+        type: string
+      frontend_name:
+        description: 'Frontend Package Name'
+        required: true
+        type: string
+
+
+env:
+  AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  RESOURCE_GROUP_NAME: ${{ vars.AZURE_RESOURCE_GROUP_NAME }}
+  DEMO_INSTANCE_NAME: octocat_supply-legendary-umbrella
+  DEMO_SLUG: octocat_supply
+  GITHUB_HOSTNAME: "github.com"
+  REGISTRY_HOSTNAME: "ghcr.io"
+  REGISTRY_URL: "https://ghcr.io/${{ github.repository_owner }}"
+  ARTIFACT_URL: "https://github.com/${{ github.repository }}/pkgs/container"
+  CONTAINER_APP_ENVIRONMENT_NAME: octocat-supply-cae
+  CONTAINER_APP_ENVIRONMENT_ID: /subscriptions/408de6dc-726d-4e63-87d3-ef5bbbb30d9e/resourceGroups/dotcom--msft-common-demos--octocat-supply-resources/providers/Microsoft.App/managedEnvironments/octocat-supply-cae
+
+
+jobs:
+  deploy:
+    name: Deploy Container Apps
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      attestations: read
+      packages: read
+    environment:
+      name: production
+      url: ${{ steps.extract_url.outputs.frontend_url }}
+    
+    outputs:
+      api_url: ${{ steps.extract_url.outputs.api_url }}
+      frontend_url: ${{ steps.extract_url.outputs.frontend_url }}
+      api_app_name: ${{ steps.extract_url.outputs.api_app_name }}
+      frontend_app_name: ${{ steps.extract_url.outputs.frontend_app_name }}
+      location: ${{ steps.extract_url.outputs.location }}
+      hostname: ${{ env.GITHUB_HOSTNAME }}
+      artifact_url: ${{ env.ARTIFACT_URL }}
+      registry_url: ${{ env.REGISTRY_URL }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_HOSTNAME }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify Container Attestations
+        uses: ./.github/actions/verify-container-attestations
+        with:
+          containers: '["${{ github.event.inputs.api_image }}", "${{ github.event.inputs.frontend_image }}"]'
+          repository: ${{ github.repository }}
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate Deployment
+        run: |
+          # Validate Bicep template syntax
+          echo "Validating Bicep template..."
+          az bicep build --file ./infra/container-apps.bicep --stdout > /dev/null
+          
+          # Perform what-if deployment validation
+          echo "Running deployment validation (what-if)..."
+          az deployment group what-if \
+            --resource-group "${{ env.RESOURCE_GROUP_NAME }}" \
+            --template-file ./infra/container-apps.bicep \
+            --parameters \
+              containerAppsEnvironmentId="${{ env.CONTAINER_APP_ENVIRONMENT_ID }}" \
+              demoInstanceName="${{ env.DEMO_INSTANCE_NAME }}" \
+              apiImage="${{ github.event.inputs.api_image }}" \
+              frontendImage="${{ github.event.inputs.frontend_image }}" \
+              containerRegistryUrl="${{ env.REGISTRY_HOSTNAME }}" \
+              containerRegistryUsername="token" \
+              containerRegistryPassword="${{ secrets.OD_DEMO_GHCR_READ_TOKEN }}" \
+              demoSlug="${{ env.DEMO_SLUG }}" \
+            --result-format FullResourcePayloads
+          
+          # Validate deployment template
+          echo "Validating deployment template..."
+          az deployment group validate \
+            --resource-group "${{ env.RESOURCE_GROUP_NAME }}" \
+            --template-file ./infra/container-apps.bicep \
+            --parameters \
+              containerAppsEnvironmentId="${{ env.CONTAINER_APP_ENVIRONMENT_ID }}" \
+              demoInstanceName="${{ env.DEMO_INSTANCE_NAME }}" \
+              apiImage="${{ github.event.inputs.api_image }}" \
+              frontendImage="${{ github.event.inputs.frontend_image }}" \
+              containerRegistryUrl="${{ env.REGISTRY_HOSTNAME }}" \
+              containerRegistryUsername="token" \
+              containerRegistryPassword="${{ secrets.OD_DEMO_GHCR_READ_TOKEN }}" \
+              demoSlug="${{ env.DEMO_SLUG }}"
+          
+          echo "✅ Validation completed successfully"
+
+      - name: Deploy Container Apps
+        id: deploy
+        run: |
+          az deployment group create \
+            --resource-group "${{ env.RESOURCE_GROUP_NAME }}" \
+            --template-file ./infra/container-apps.bicep \
+            --parameters \
+              containerAppsEnvironmentId="${{ env.CONTAINER_APP_ENVIRONMENT_ID }}" \
+              demoInstanceName="${{ env.DEMO_INSTANCE_NAME }}" \
+              apiImage="${{ github.event.inputs.api_image }}" \
+              frontendImage="${{ github.event.inputs.frontend_image }}" \
+              containerRegistryUrl="${{ env.REGISTRY_HOSTNAME }}" \
+              containerRegistryUsername="token" \
+              containerRegistryPassword="${{ secrets.OD_DEMO_GHCR_READ_TOKEN }}" \
+              demoSlug="${{ env.DEMO_SLUG }}" \
+            --query 'properties.outputs' \
+            --output json > deployment-outputs.json
+          
+          # Extract outputs
+          API_URL=$(cat deployment-outputs.json | jq -r '.apiUrl.value // empty')
+          FRONTEND_URL=$(cat deployment-outputs.json | jq -r '.frontendUrl.value // empty')
+          
+          echo "✅ Deployment completed successfully"
+          echo "deployment_outputs=deployment-outputs.json" >> $GITHUB_OUTPUT
+
+      - name: Extract Outputs and Generate Summary
+        id: extract_url
+        uses: ./.github/actions/summarize-deployment
+        with:
+          deployment-outputs-file: ${{ steps.deploy.outputs.deployment_outputs }}
+          api-image: ${{ github.event.inputs.api_image }}
+          frontend-image: ${{ github.event.inputs.frontend_image }}
+          api-digest: ${{ github.event.inputs.api_digest }}
+          frontend-digest: ${{ github.event.inputs.frontend_digest }}
+          api-name: ${{ github.event.inputs.api_name }}
+          frontend-name: ${{ github.event.inputs.frontend_name }}
+          resource-group: ${{ env.RESOURCE_GROUP_NAME }}
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+
+  update-api-registry:
+    name: Update API Virtual Registry
+    needs: deploy
+    permissions:
+      contents: read
+      artifact-metadata: write
+    uses: msft-common-demos/od-octocat-supply-workflows/.github/workflows/update-virtual-registry.yml@main
+    with:
+      artifact_name: ${{ github.event.inputs.api_name }}
+      image: ${{ github.event.inputs.api_image }}
+      digest: ${{ github.event.inputs.api_digest }}
+      hostname: ${{ needs.deploy.outputs.hostname }}
+      artifact_url: ${{ needs.deploy.outputs.artifact_url }}/${{ github.event.inputs.api_name }}
+      registry_url: ${{ needs.deploy.outputs.registry_url }}
+      app_name: ${{ needs.deploy.outputs.api_app_name }}
+      location: ${{ needs.deploy.outputs.location }}
+      resource_group: ${{ vars.AZURE_RESOURCE_GROUP_NAME }}
+      runtime_risks: internet-exposed,sensitive-data
+
+  update-frontend-registry:
+    name: Update Frontend Virtual Registry
+    needs: deploy
+    permissions:
+      contents: read
+      artifact-metadata: write
+    uses: msft-common-demos/od-octocat-supply-workflows/.github/workflows/update-virtual-registry.yml@main
+    with:
+      artifact_name: ${{ github.event.inputs.frontend_name }}
+      image: ${{ github.event.inputs.frontend_image }}
+      digest: ${{ github.event.inputs.frontend_digest }}
+      hostname: ${{ needs.deploy.outputs.hostname }}
+      artifact_url: ${{ needs.deploy.outputs.artifact_url }}/${{ github.event.inputs.frontend_name }}
+      registry_url: ${{ needs.deploy.outputs.registry_url }}
+      app_name: ${{ needs.deploy.outputs.frontend_app_name }}
+      location: ${{ needs.deploy.outputs.location }}
+      resource_group: ${{ vars.AZURE_RESOURCE_GROUP_NAME }}
+      runtime_risks: internet-exposed
+

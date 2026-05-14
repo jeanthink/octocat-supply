@@ -1,0 +1,66 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+<% if demo_options.backend == 'nodejs' %>
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug API",
+            "cwd": "${workspaceFolder}/api",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": ["run", "dev"],
+            "console": "integratedTerminal"
+        },
+<% elsif demo_options.backend == 'python' %>
+        {
+            "type": "debugpy",
+            "request": "launch",
+            "name": "Debug API",
+            "cwd": "${workspaceFolder}/api",
+            "module": "uvicorn",
+            "args": ["src.main:app", "--reload", "--host", "0.0.0.0", "--port", "3000"],
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/api"
+            }
+        },
+<% elsif demo_options.backend == 'java' %>
+        {
+            "type": "java",
+            "request": "launch",
+            "name": "Debug API",
+            "cwd": "${workspaceFolder}/api",
+            "mainClass": "com.octodemo.octocatsupply.OctocatSupplyApplication",
+            "projectName": "octocat-supply",
+            "console": "integratedTerminal"
+        },
+<% endif %>
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Start Frontend",
+            "cwd": "${workspaceFolder}/frontend",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": ["run", "dev"],
+            "console": "integratedTerminal",
+            "env": {
+                "VITE_API_URL": "http://localhost:3000"
+            },
+            "serverReadyAction": {
+                "pattern": "Local:\\s+http://localhost:([0-9]+)",
+                "uriFormat": "http://localhost:%s",
+                "action": "openExternally"
+            }
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Start API & Frontend",
+            "configurations": ["Debug API", "Start Frontend"],
+            "stopAll": true,
+            "presentation": {
+                "order": 1
+            }
+        }
+    ]
+}
