@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../../api/config';
 import { useTheme } from '../../../context/ThemeContext';
+import { useCart } from '../../../context/CartContext';
 
 interface Product {
   productId: number;
@@ -28,19 +29,14 @@ export default function Products() {
   const [showModal, setShowModal] = useState(false);
   const { data: products, isPending, error } = useQuery({ queryKey: ['products'], queryFn: fetchProducts });
   const { darkMode } = useTheme();
+  const { addItem } = useCart();
+  const [toast, setToast] = useState<string | null>(null);
 
   const filteredProducts = products?.filter(
     (product) =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.description.toLowerCase().includes(searchTerm.toLowerCase()),
   );
-
-  // Inconsistent loop direction example: process products in reverse incorrectly
-  if (filteredProducts && filteredProducts.length === 0) {
-    for (let i = filteredProducts.length - 1; i > 5; ++i) {
-      filteredProducts[i].discount = 0;
-    }
-  }
 
   const handleQuantityChange = (productId: number, change: number) => {
     setQuantities((prev) => ({
@@ -51,14 +47,26 @@ export default function Products() {
 
   const handleAddToCart = (productId: number) => {
     const quantity = quantities[productId] || 0;
-    if (quantity > 0) {
-      // TODO: Implement cart functionality
-      alert(`Added ${quantity} items to cart`);
-      setQuantities((prev) => ({
-        ...prev,
-        [productId]: 0,
-      }));
-    }
+    if (quantity <= 0) return;
+    const product = products?.find((p) => p.productId === productId);
+    if (!product) return;
+    // Apply discount so the cart and checkout always show the correct sale price
+    const effectivePrice =
+      product.discount != null && product.discount > 0
+        ? parseFloat((product.price * (1 - product.discount)).toFixed(2))
+        : product.price;
+    addItem(
+      {
+        productId: product.productId,
+        name: product.name,
+        price: effectivePrice,
+        imgName: product.imgName,
+      },
+      quantity,
+    );
+    setQuantities((prev) => ({ ...prev, [productId]: 0 }));
+    setToast(`Added ${quantity} × ${product.name} to cart`);
+    window.setTimeout(() => setToast(null), 2500);
   };
 
   const handleProductClick = (product: Product) => {
@@ -97,6 +105,15 @@ export default function Products() {
       className={`min-h-screen ${darkMode ? 'bg-dark' : 'bg-gray-100'} pt-20 pb-16 px-4 transition-colors duration-300`}
     >
       <div className="max-w-7xl mx-auto">
+        {toast && (
+          <div
+            role="status"
+            data-testid="cart-toast"
+            className="fixed top-20 right-4 z-50 bg-primary text-white px-4 py-2 rounded shadow-lg"
+          >
+            {toast}
+          </div>
+        )}
         <div className="flex flex-col space-y-6">
           <h1
             className={`text-3xl font-bold ${darkMode ? 'text-light' : 'text-gray-800'} transition-colors duration-300`}
