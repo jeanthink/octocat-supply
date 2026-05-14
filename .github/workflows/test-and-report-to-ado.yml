@@ -50,13 +50,13 @@ jobs:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: api } }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with: { node-version: '24', cache: 'npm', cache-dependency-path: api/package-lock.json }
       - run: npm ci
       - name: Vitest with JUnit reporter
         run: npx vitest run --reporter=junit --outputFile=../junit-api.xml || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: junit-api
           path: junit-api.xml
@@ -70,14 +70,14 @@ jobs:
       PLAYWRIGHT_BASE_URL: ${{ needs.resolve-urls.outputs.frontend_url }}
       PLAYWRIGHT_WEB_SERVER: 'false'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with: { node-version: '20', cache: 'npm', cache-dependency-path: frontend/package-lock.json }
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Run Playwright (junit reporter)
         run: npx playwright test --project=chromium --reporter=junit > ../junit-e2e.xml || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: junit-e2e
           path: junit-e2e.xml
@@ -88,8 +88,8 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
         with: { path: junit }
       - name: Post results to Azure DevOps
         shell: pwsh
