@@ -25,10 +25,10 @@ export default function Checkout() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!name.trim()) return setError('Please enter your name.');
-    if (!email.trim()) return setError('Please enter your email.');
-    if (!acceptTerms) return setError('You must accept the Terms & Conditions to checkout.');
-    if (items.length === 0) return setError('Your cart is empty.');
+    if (!name.trim()) { return setError('Please enter your name.'); }
+    if (!email.trim()) { return setError('Please enter your email.'); }
+    if (!acceptTerms) { return setError('You must accept the Terms & Conditions to checkout.'); }
+    if (items.length === 0) { return setError('Your cart is empty.'); }
 
     setSubmitting(true);
     try {
