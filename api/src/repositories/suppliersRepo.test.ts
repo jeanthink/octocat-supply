@@ -113,7 +113,7 @@ describe('SuppliersRepository', () => {
 
             expect(mockDb.run).toHaveBeenCalledWith(
                 'INSERT INTO suppliers (name, description, contact_person, email, phone, active, verified) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                ['New Supplier', 'New Description', 'Jane Doe', 'jane@test.com', '555-5678', true, false]
+                ['New Supplier', 'New Description', 'Jane Doe', 'jane@test.com', '555-5678', 1, 0]
             );
             expect(result.supplierId).toBe(2);
             expect(result.name).toBe('New Supplier');
@@ -187,6 +187,11 @@ describe('SuppliersRepository', () => {
 
             expect(result).toBe(false);
         });
+
+        it('should throw when database error occurs', async () => {
+            mockDb.get.mockRejectedValue(new Error('DB error'));
+            await expect(repository.exists(1)).rejects.toThrow();
+        });
     });
 
     describe('findByName', () => {
@@ -204,6 +209,11 @@ describe('SuppliersRepository', () => {
             );
             expect(result).toHaveLength(1);
             expect(result[0].name).toBe('Test Supplier');
+        });
+
+        it('should throw when database error occurs', async () => {
+            mockDb.all.mockRejectedValue(new Error('DB error'));
+            await expect(repository.findByName('Test')).rejects.toThrow();
         });
     });
 });

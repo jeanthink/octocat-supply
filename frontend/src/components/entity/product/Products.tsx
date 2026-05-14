@@ -47,9 +47,9 @@ export default function Products() {
 
   const handleAddToCart = (productId: number) => {
     const quantity = quantities[productId] || 0;
-    if (quantity <= 0) return;
+    if (quantity <= 0) { return; }
     const product = products?.find((p) => p.productId === productId);
-    if (!product) return;
+    if (!product) { return; }
     // Apply discount so the cart and checkout always show the correct sale price
     const effectivePrice =
       product.discount != null && product.discount > 0

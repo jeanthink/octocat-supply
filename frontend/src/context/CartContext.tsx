@@ -24,7 +24,7 @@ const STORAGE_KEY = 'octocat.cart.v1';
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>(() => {
-    if (typeof window === 'undefined') return [];
+    if (typeof window === 'undefined') { return []; }
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       return raw ? (JSON.parse(raw) as CartItem[]) : [];
@@ -42,7 +42,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items]);
 
   const addItem: CartContextValue['addItem'] = (product, quantity) => {
-    if (quantity <= 0) return;
+    if (quantity <= 0) { return; }
     setItems((prev) => {
       const existing = prev.find((i) => i.productId === product.productId);
       if (existing) {
@@ -80,6 +80,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
 export function useCart(): CartContextValue {
   const ctx = useContext(CartContext);
-  if (!ctx) throw new Error('useCart must be used within CartProvider');
+  if (!ctx) { throw new Error('useCart must be used within CartProvider'); }
   return ctx;
 }

@@ -168,6 +168,16 @@ export function generatePlaceholders(count: number): string {
 }
 
 /**
+ * Convert a value for SQLite binding: booleans become integers (0/1)
+ */
+function toSQLiteValue(value: unknown): unknown {
+  if (typeof value === 'boolean') {
+    return value ? 1 : 0;
+  }
+  return value;
+}
+
+/**
  * Build INSERT SQL with placeholders
  */
 export function buildInsertSQL<T extends Record<string, unknown>>(
@@ -176,7 +186,7 @@ export function buildInsertSQL<T extends Record<string, unknown>>(
 ): { sql: string; values: unknown[] } {
   const snakeCaseData = objectToSnakeCase(data);
   const columns = Object.keys(snakeCaseData);
-  const values = Object.values(snakeCaseData);
+  const values = Object.values(snakeCaseData).map(toSQLiteValue);
   const placeholders = generatePlaceholders(columns.length);
 
   const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
@@ -194,7 +204,7 @@ export function buildUpdateSQL<T extends Record<string, unknown>>(
 ): { sql: string; values: unknown[] } {
   const snakeCaseData = objectToSnakeCase(data as Record<string, unknown>);
   const columns = Object.keys(snakeCaseData);
-  const values = Object.values(snakeCaseData);
+  const values = Object.values(snakeCaseData).map(toSQLiteValue);
 
   const setClause = columns.map((col) => `${col} = ?`).join(', ');
   const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
