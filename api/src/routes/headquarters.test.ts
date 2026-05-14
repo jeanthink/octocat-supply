@@ -85,9 +85,7 @@ describe('Headquarters API', () => {
     expect(response.status).toBe(204);
   });
 
-  it('should return 500 when updating headquarters (known validator bug with non-constructor call)', async () => {
-    // The PUT handler calls HeadquartersValidator without `new`, which throws TypeError in strict mode.
-    // This test documents the current behavior.
+  it('should update a headquarters by ID', async () => {
     const createResponse = await request(app).post('/headquarters').send({
       name: 'Update HQ',
       description: 'desc',
@@ -106,9 +104,20 @@ describe('Headquarters API', () => {
       email: 'ops2@test.com',
       phone: '555-0006',
     });
-    // The PUT handler has a bug: calls HeadquartersValidator() without `new` in strict mode,
-    // which throws a TypeError caught by the error handler as a 500 Internal Error.
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(200);
+    expect(response.body.name).toBe('Updated HQ Name');
+  });
+
+  it('should return 404 for non-existing headquarters on PUT', async () => {
+    const response = await request(app).put('/headquarters/999').send({
+      name: 'Ghost HQ',
+      description: '',
+      address: '1 Ghost Lane',
+      contactPerson: '',
+      email: '',
+      phone: '',
+    });
+    expect(response.status).toBe(404);
   });
 
   it('should return 404 for non-existing headquarters on GET', async () => {
