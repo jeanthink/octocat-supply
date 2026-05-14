@@ -20,5 +20,8 @@ services:
     depends_on:
       - api
     environment:
-      - API_HOST=api
+      - API_HOST=localhost
       - API_PORT=3000
+      - API_PROTOCOL=http
+      - NGINX_API_HOST=api
+      - NGINX_API_PORT=3000
