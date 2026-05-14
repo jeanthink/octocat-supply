@@ -96,7 +96,7 @@ jobs:
         env:
           ADO_PAT: ${{ secrets.ADO_PAT }}
         run: |
-          ./octocat-supply/scripts/post-tests-to-ado.ps1 `
+          ./scripts/post-tests-to-ado.ps1 `
             -ApiUrl '${{ needs.resolve-urls.outputs.api_url }}' `
             -FrontendUrl '${{ needs.resolve-urls.outputs.frontend_url }}' `
             -JunitDir junit
